@@ -95,6 +95,8 @@ def print_banner(
     info.append("/install-skill", style="bold")
     info.append(", ", style="dim")
     info.append("/uninstall-skill", style="bold")
+    info.append(", ", style="dim")
+    info.append("/channel", style="bold")
     console.print(info)
     console.print()
 
@@ -171,6 +173,39 @@ def _cmd_uninstall_skill(name: str) -> None:
     else:
         console.print(f"[red]Failed:[/red] {result['error']}")
     console.print()
+
+
+def _cmd_channel(args: str) -> None:
+    """Start iMessage channel server."""
+    import asyncio
+    from .channels.imessage import IMessageChannel, IMessageConfig
+    from .channels.imessage.serve import IMessageServer, create_agent_handler
+
+    parts = args.split() if args else []
+    allowed = set()
+    for i, p in enumerate(parts):
+        if p == "--allow" and i + 1 < len(parts):
+            allowed.add(parts[i + 1])
+
+    config = IMessageConfig(
+        allowed_senders=allowed if allowed else None,
+    )
+
+    console.print("[dim]Loading agent for iMessage channel...[/dim]")
+    handler = create_agent_handler()
+
+    server = IMessageServer(config, handler=handler)
+    console.print("[green]iMessage channel started[/green]")
+    if allowed:
+        console.print(f"[dim]Allowed:[/dim] {allowed}")
+    else:
+        console.print("[dim]Allowing all senders[/dim]")
+    console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+    try:
+        asyncio.run(server.run())
+    except KeyboardInterrupt:
+        console.print("\n[dim]Channel stopped[/dim]")
 
 
 # =============================================================================
@@ -261,6 +296,11 @@ def cmd_interactive(
             if user_input.lower().startswith("/uninstall-skill"):
                 name = user_input[len("/uninstall-skill"):].strip()
                 _cmd_uninstall_skill(name)
+                continue
+
+            if user_input.lower().startswith("/channel"):
+                args = user_input[len("/channel"):].strip()
+                _cmd_channel(args)
                 continue
 
             # Stream agent response
