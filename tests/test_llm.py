@@ -43,7 +43,7 @@ class TestModelsRegistry:
             model_id, provider = value
             assert isinstance(model_id, str), f"model_id for '{name}' is not a string"
             assert isinstance(provider, str), f"provider for '{name}' is not a string"
-            assert provider in ("anthropic", "openai", "nvidia"), f"Unknown provider for '{name}': {provider}"
+            assert provider in ("anthropic", "openai", "google-genai", "nvidia"), f"Unknown provider for '{name}': {provider}"
 
     def test_anthropic_models_have_anthropic_provider(self):
         """Test that claude models use anthropic provider."""
@@ -56,6 +56,12 @@ class TestModelsRegistry:
         for name, (model_id, provider) in MODELS.items():
             if name.startswith(("gpt", "o1")):
                 assert provider == "openai", f"OpenAI model '{name}' doesn't use openai provider"
+
+    def test_google_models_have_google_provider(self):
+        """Test that gemini models use google-genai provider."""
+        for name, (model_id, provider) in MODELS.items():
+            if name.startswith("gemini"):
+                assert provider == "google-genai", f"Google model '{name}' doesn't use google-genai provider"
 
 
 # =============================================================================
@@ -214,6 +220,16 @@ class TestGetChatModel:
 
         call_kwargs = mock_init.call_args[1]
         assert call_kwargs["model_provider"] == "openai"
+
+    @mock.patch("EvoScientist.llm.models.init_chat_model")
+    def test_infers_google_from_gemini_prefix(self, mock_init):
+        """Test that google-genai is inferred from gemini prefix."""
+        mock_init.return_value = "mock_model"
+
+        get_chat_model("gemini-2.0-flash")
+
+        call_kwargs = mock_init.call_args[1]
+        assert call_kwargs["model_provider"] == "google-genai"
 
     @mock.patch("EvoScientist.llm.models.init_chat_model")
     def test_defaults_to_anthropic_for_unknown(self, mock_init):
