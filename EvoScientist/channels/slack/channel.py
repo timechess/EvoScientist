@@ -35,6 +35,14 @@ class SlackChannel(Channel):
         self._typing_message_ts: dict[str, str] = {}
 
     async def start(self) -> None:
+        if not self.config.bot_token:
+            raise ChannelError("Slack bot token is required")
+        if not self.config.app_token:
+            raise ChannelError(
+                "Slack app token is required for Socket Mode "
+                "(starts with xapp-)"
+            )
+
         try:
             from slack_sdk.web.async_client import AsyncWebClient
             from slack_sdk.socket_mode.aiohttp import SocketModeClient
@@ -44,14 +52,6 @@ class SlackChannel(Channel):
             raise ChannelError(
                 "slack-sdk or aiohttp not installed. "
                 "Install with: pip install evoscientist[slack]"
-            )
-
-        if not self.config.bot_token:
-            raise ChannelError("Slack bot token is required")
-        if not self.config.app_token:
-            raise ChannelError(
-                "Slack app token is required for Socket Mode "
-                "(starts with xapp-)"
             )
 
         self._web_client = AsyncWebClient(
