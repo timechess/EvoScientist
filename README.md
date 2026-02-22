@@ -28,10 +28,12 @@
   <source media="(prefers-color-scheme: dark)" srcset=".github/assets/badge-license-dark.svg">
   <img alt="License MIT" src=".github/assets/badge-license-light.svg" height="28">
 </picture></a>
-
-<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Sans-Serif&pause=1000&color=64B5F6&center=true&vCenter=true&width=435&lines=Towards+Self-Evolving+AI+Scientists;Harness+Vibe-Driven+Research" alt="Typing SVG" /></a>
-
 </div>
+
+<div align="center">
+<a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Sans-Serif&pause=1000&color=64B5F6&center=true&vCenter=true&width=435&lines=Towards+Self-Evolving+AI+Scientists;Harness+Vibe-Driven+Research" alt="Typing SVG" /></a>
+</div>
+
 
 ## 🔥 News
 > TODO
