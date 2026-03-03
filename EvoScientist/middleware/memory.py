@@ -565,6 +565,20 @@ class EvoMemoryMiddleware(AgentMiddleware):
         )
 
     @staticmethod
+    def _structured_output_kwargs(model: BaseChatModel) -> dict[str, Any]:
+        """Return extra kwargs for with_structured_output based on provider.
+
+        OpenAI's Structured Outputs (default since langchain-openai 0.3)
+        requires ``additionalProperties: false`` and all-required fields.
+        The ExtractedMemory schema uses Optional unions which violate these
+        rules.  Fall back to function_calling for OpenAI models.
+        """
+        model_module = type(model).__module__ or ""
+        if model_module.startswith("langchain_openai"):
+            return {"method": "function_calling"}
+        return {}
+
+    @staticmethod
     def _disable_thinking(model: BaseChatModel) -> BaseChatModel:
         """Return a copy of the model with thinking/reasoning disabled.
 
@@ -601,7 +615,8 @@ class EvoMemoryMiddleware(AgentMiddleware):
         prompt = self._build_extraction_prompt(memory, messages)
         try:
             plain_model = self._disable_thinking(model)
-            structured_model = plain_model.with_structured_output(ExtractedMemory)
+            so_kwargs = self._structured_output_kwargs(plain_model)
+            structured_model = plain_model.with_structured_output(ExtractedMemory, **so_kwargs)
             result = structured_model.invoke(prompt)
             return result.model_dump(exclude_none=True)
         except Exception as e:  # noqa: BLE001
@@ -613,7 +628,8 @@ class EvoMemoryMiddleware(AgentMiddleware):
         prompt = self._build_extraction_prompt(memory, messages)
         try:
             plain_model = self._disable_thinking(model)
-            structured_model = plain_model.with_structured_output(ExtractedMemory)
+            so_kwargs = self._structured_output_kwargs(plain_model)
+            structured_model = plain_model.with_structured_output(ExtractedMemory, **so_kwargs)
             result = await structured_model.ainvoke(prompt)
             return result.model_dump(exclude_none=True)
         except Exception as e:  # noqa: BLE001
