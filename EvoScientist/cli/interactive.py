@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 import queue
 import random
 import sys
