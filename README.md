@@ -56,7 +56,7 @@ Going beyond traditional human-in-the-loop systems, EvoScientist introduces an A
 - **🔌 MCP & Skills** — Plug in MCP servers or install skills from GitHub on the fly.
 
 ## 🎯 ᯓ➤ Roadmap
-- [x] 🖥️ TUI powered by Rich and Textual
+- [x] 🖥️ Full-screen TUI and classic CLI interfaces
 - [x] 📻 EvoMemory v1.0 shipped
 - [x] ⚒️ 200+ predefined skills built in
 - [x] 🧩 Built-in research-lifecycle skills shipped
@@ -171,8 +171,8 @@ The easiest way to configure API keys is the interactive wizard:
 ```bash
 EvoSci onboard
 ```
-
-It walks you through provider selection, key validation, model choice, and workspace setup.
+> [!TIP]
+> It walks you through provider selection, key validation, model choice, and workspace mode.
 
 <details>
 <summary> 📟 Manual configuration via environment variables </summary>
@@ -207,7 +207,7 @@ cp .env.example .env  # then fill in your keys
 ## ⚡ Quick Start
 
 ```bash
-EvoSci  # or EvoScientist — interactive mode
+EvoSci  # or EvoScientist — interactive mode (TUI by default)
 ```
 
 ![demo](.github/assets/EvoScientist_cli.png)
@@ -220,9 +220,11 @@ EvoSci  # or EvoScientist — interactive mode
 <summary>Common examples</summary>
 
 ```bash
+EvoSci                            # interactive mode (TUI by default)
 EvoSci -p "your question"        # single-shot mode
+EvoSci --workdir /path/to/project # open in a specific directory
 EvoSci -m run                     # isolated per-session workspace
-EvoSci --ui textual               # alternative TUI backend
+EvoSci --ui cli                   # classic CLI (lightweight)
 EvoSci serve                      # headless mode — channels only, no interactive prompt
 ```
 

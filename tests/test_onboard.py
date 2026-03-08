@@ -745,7 +745,7 @@ class TestRunOnboard:
 
             # Mock all questionary calls
             mock_q.select.return_value.ask.side_effect = [
-                "rich",  # UI backend
+                "tui",  # UI backend
                 "anthropic",  # Provider
                 "claude-sonnet-4-5",  # Model
                 "daemon",  # Workspace mode
@@ -796,7 +796,7 @@ class TestRunOnboard:
             mock_load.return_value = EvoScientistConfig()
 
             mock_q.select.return_value.ask.side_effect = [
-                "rich",  # UI backend
+                "tui",  # UI backend
                 "anthropic",
                 "claude-sonnet-4-5",
                 "daemon",

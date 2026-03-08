@@ -1290,7 +1290,7 @@ def run_textual_interactive(
                 memory_path = _shorten_path(str(paths.MEMORY_DIR))
                 if memory_path:
                     self._append_system(f"Memory dir: {memory_path}", style="dim")
-                self._append_system("UI: textual", style="dim")
+                self._append_system("UI: tui", style="dim")
                 return
 
             if cmd == "/new":

@@ -475,7 +475,7 @@ def _step_ui_backend(config: EvoScientistConfig) -> str:
         config: Current configuration.
 
     Returns:
-        Selected backend name ("rich" or "textual").
+        Selected backend name ("tui" or "cli").
     """
     choices = [
         Choice(title="TUI (full-screen interface, recommended)", value="tui"),

@@ -34,7 +34,7 @@ class StreamingTUIBackend(Protocol):
 class RichStreamingBackend:
     """Default Rich backend wrapper around the existing streaming renderer."""
 
-    name: str = "rich"
+    name: str = "cli"
 
     def run_streaming(
         self,
