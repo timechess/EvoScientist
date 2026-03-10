@@ -428,7 +428,7 @@ We welcome contributions from developers, researchers, and AI coding agents at a
 
 ### 📝 Citation
 ```bibtex
-@article{lyu2026evoscientist, 
+@article{evoscientist2026, 
   title={EvoScientist: Towards Multi-Agent Evolving AI Scientists for End-to-End Scientific Discovery}, 
   author={Yougang Lyu and Xi Zhang and Xinhao Yi and Yuyue Zhao and Shuyu Guo and Wenxiang Hu and Jan Piotrowski and Jakub Kaliski and Jacopo Urbani and Zaiqiao Meng and Lun Zhou and Xiaohui Yan}, 
   journal={arXiv preprint arXiv:2603.08127}, 
