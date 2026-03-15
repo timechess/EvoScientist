@@ -49,7 +49,7 @@ Moving beyond traditional human-in-the-loop systems, EvoScientist adopts a human
     <td align="center" valign="top" width="33%">
       <img src=".github/assets/ICAIS_awards.JPG" height="180" alt="ICAIS 2025 Awards"/>
       <br />
-      <sub><b>ICAIS 2025 — Best Paper & Appraisal Award</b></sub>
+      <sub><b>Best Paper & Appraisal Award</b></sub>
     </td>
     <td align="center" valign="top" width="33%">
       <img src=".github/assets/ICAIS_best_paper.png" height="180" alt="Best Paper"/>
