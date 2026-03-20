@@ -13,6 +13,12 @@ import os
 import re
 from typing import Any
 
+
+def _env_flag_true(name: str) -> bool:
+    v = os.environ.get(name, "")
+    return isinstance(v, str) and v.strip().lower() in ("1", "true", "yes", "on")
+
+
 from langchain.chat_models import init_chat_model
 
 
@@ -437,6 +443,11 @@ def get_chat_model(
                 kwargs.setdefault(
                     "use_responses_api", True
                 )  # ccproxy Chat Completions does not support tool calling; Responses API does
+
+        # Some OpenAI-compatible gateways only implement the Responses API.
+        if _env_flag_true("OPENAI_USE_RESPONSES_API"):
+            kwargs.setdefault("use_responses_api", True)
+
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if api_key:
             kwargs["api_key"] = api_key
@@ -460,6 +471,10 @@ def get_chat_model(
         api_key = os.environ.get(api_key_env, "")
         if api_key:
             kwargs["api_key"] = api_key
+
+        if provider == "custom-openai" and _env_flag_true("CUSTOM_OPENAI_USE_RESPONSES_API"):
+            kwargs.setdefault("use_responses_api", True)
+
         # SiliconFlow: disable thinking — LangChain drops reasoning_content
         # from history, causing error 20015 on multi-turn requests.
         if provider == "siliconflow":

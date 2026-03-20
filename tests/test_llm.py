@@ -412,6 +412,21 @@ class TestThirdPartyRouting:
         assert call_kwargs["base_url"] == "https://my-llm.example.com/v1"
         assert call_kwargs["api_key"] == "custom-key-789"
 
+
+    @patch("EvoScientist.llm.models.init_chat_model")
+    def test_custom_openai_can_force_responses_api(self, mock_init, monkeypatch):
+        """custom-openai supports forcing Responses API via env flag."""
+        mock_init.return_value = "mock_model"
+        monkeypatch.setenv("CUSTOM_OPENAI_BASE_URL", "https://my-llm.example.com/v1")
+        monkeypatch.setenv("CUSTOM_OPENAI_API_KEY", "custom-key-789")
+        monkeypatch.setenv("CUSTOM_OPENAI_USE_RESPONSES_API", "true")
+
+        get_chat_model("my-custom-model", provider="custom-openai")
+
+        call_kwargs = mock_init.call_args[1]
+        assert call_kwargs["model_provider"] == "openai"
+        assert call_kwargs["use_responses_api"] is True
+
     @patch("EvoScientist.llm.models.init_chat_model")
     def test_anthropic_base_url_override(self, mock_init, monkeypatch):
         """Anthropic provider should support base_url override (e.g. ccproxy)."""
@@ -767,6 +782,21 @@ class TestAutoConfig:
         assert call_kwargs["api_key"] == "ccproxy-oauth"
         # Proxy mode: reasoning skipped (triggers Responses API → rs_ 404)
         assert "reasoning" not in call_kwargs
+
+
+    @patch("EvoScientist.llm.models.init_chat_model")
+    def test_openai_can_force_responses_api(self, mock_init, monkeypatch):
+        """Native openai provider supports forcing Responses API via env flag."""
+        mock_init.return_value = "mock_model"
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://api-vip.codex-for.me/v1")
+        monkeypatch.setenv("OPENAI_API_KEY", "clp-key")
+        monkeypatch.setenv("OPENAI_USE_RESPONSES_API", "true")
+
+        get_chat_model("gpt-5.3-codex", provider="openai")
+
+        call_kwargs = mock_init.call_args[1]
+        assert call_kwargs["model_provider"] == "openai"
+        assert call_kwargs["use_responses_api"] is True
 
     @patch("EvoScientist.llm.models.init_chat_model")
     def test_openai_no_base_url_when_unset(self, mock_init, monkeypatch):

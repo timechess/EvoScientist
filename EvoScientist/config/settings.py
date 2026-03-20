@@ -7,6 +7,7 @@ with the following priority (highest to lowest):
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
@@ -411,6 +412,99 @@ def get_effective_config(
     return EvoScientistConfig(**data)
 
 
+def _read_json_file(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _read_toml_file(path: Path) -> dict[str, Any] | None:
+    try:
+        import tomllib
+
+        with path.open("rb") as f:
+            data = tomllib.load(f)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _codex_homes() -> list[Path]:
+    homes: list[Path] = []
+    seen: set[str] = set()
+    for raw in (os.environ.get("CODEX_HOME"), str(Path.home() / ".codex")):
+        if not raw:
+            continue
+        p = Path(raw).expanduser()
+        key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        homes.append(p)
+    return homes
+
+
+def _load_codex_openai_fallback() -> dict[str, Any]:
+    """Load OpenAI-compatible credentials from local Codex CLI config.
+
+    Returns keys:
+      - api_key: str | None
+      - base_url: str | None
+      - use_responses_api: bool
+    """
+    api_key: str | None = None
+    base_url: str | None = None
+    use_responses_api = False
+
+    for home in _codex_homes():
+        auth = _read_json_file(home / "auth.json")
+        if api_key is None and isinstance(auth, dict):
+            key = auth.get("OPENAI_API_KEY")
+            if isinstance(key, str) and key.strip():
+                api_key = key.strip()
+
+        config = _read_toml_file(home / "config.toml")
+        if base_url is None and isinstance(config, dict):
+            providers = config.get("model_providers")
+            provider_cfg: dict[str, Any] | None = None
+            if isinstance(providers, dict):
+                provider_name = config.get("model_provider")
+                if isinstance(provider_name, str) and provider_name:
+                    cand = providers.get(provider_name)
+                    if isinstance(cand, dict):
+                        provider_cfg = cand
+                if provider_cfg is None:
+                    for value in providers.values():
+                        if isinstance(value, dict):
+                            provider_cfg = value
+                            break
+
+            if isinstance(provider_cfg, dict):
+                raw_base = provider_cfg.get("base_url")
+                if isinstance(raw_base, str) and raw_base.strip():
+                    normalized = raw_base.strip().rstrip("/")
+                    if normalized.endswith("/responses"):
+                        base_url = normalized.removesuffix("/responses")
+                        use_responses_api = True
+                    else:
+                        base_url = normalized
+                        wire_api = provider_cfg.get("wire_api")
+                        if isinstance(wire_api, str) and wire_api.strip().lower() == "responses":
+                            use_responses_api = True
+
+        if api_key is not None and base_url is not None:
+            break
+
+    return {
+        "api_key": api_key,
+        "base_url": base_url,
+        "use_responses_api": use_responses_api,
+    }
+
+
 def apply_config_to_env(config: EvoScientistConfig) -> None:
     """Apply config API keys to environment variables if not already set.
 
@@ -460,3 +554,47 @@ def apply_config_to_env(config: EvoScientistConfig) -> None:
         os.environ["OLLAMA_BASE_URL"] = config.ollama_base_url
     if config.tavily_api_key and not os.environ.get("TAVILY_API_KEY"):
         os.environ["TAVILY_API_KEY"] = config.tavily_api_key
+
+    # Optional fallback: reuse local Codex CLI credentials/config
+    # for OpenAI-style providers when current process has no explicit vars.
+    codex_fallback_needed = (
+        (
+            config.provider == "openai"
+            and not os.environ.get("OPENAI_API_KEY")
+            and not os.environ.get("OPENAI_BASE_URL")
+        )
+        or (
+            config.provider == "custom-openai"
+            and (
+                not os.environ.get("CUSTOM_OPENAI_API_KEY")
+                or not os.environ.get("CUSTOM_OPENAI_BASE_URL")
+            )
+        )
+    )
+    if not codex_fallback_needed:
+        return
+
+    codex = _load_codex_openai_fallback()
+    api_key = codex.get("api_key")
+    base_url = codex.get("base_url")
+    use_responses_api = bool(codex.get("use_responses_api"))
+
+    if config.provider == "openai":
+        if isinstance(api_key, str) and api_key and not os.environ.get("OPENAI_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = api_key
+        if isinstance(base_url, str) and base_url and not os.environ.get("OPENAI_BASE_URL"):
+            os.environ["OPENAI_BASE_URL"] = base_url
+        if use_responses_api and not os.environ.get("OPENAI_USE_RESPONSES_API"):
+            os.environ["OPENAI_USE_RESPONSES_API"] = "true"
+
+    elif config.provider == "custom-openai":
+        if isinstance(api_key, str) and api_key and not os.environ.get(
+            "CUSTOM_OPENAI_API_KEY"
+        ):
+            os.environ["CUSTOM_OPENAI_API_KEY"] = api_key
+        if isinstance(base_url, str) and base_url and not os.environ.get(
+            "CUSTOM_OPENAI_BASE_URL"
+        ):
+            os.environ["CUSTOM_OPENAI_BASE_URL"] = base_url
+        if use_responses_api and not os.environ.get("CUSTOM_OPENAI_USE_RESPONSES_API"):
+            os.environ["CUSTOM_OPENAI_USE_RESPONSES_API"] = "true"

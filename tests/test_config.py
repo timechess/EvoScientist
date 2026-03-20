@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+import json
+
 import pytest
 import yaml
 
@@ -38,6 +40,12 @@ def temp_config_dir(tmp_path, monkeypatch):
         "EVOSCIENTIST_DEFAULT_MODE",
         "EVOSCIENTIST_WORKSPACE_DIR",
         "EVOSCIENTIST_UI_BACKEND",
+        "OPENAI_BASE_URL",
+        "OPENAI_USE_RESPONSES_API",
+        "CUSTOM_OPENAI_API_KEY",
+        "CUSTOM_OPENAI_BASE_URL",
+        "CUSTOM_OPENAI_USE_RESPONSES_API",
+        "CODEX_HOME",
     ]:
         monkeypatch.delenv(key, raising=False)
     return config_dir
@@ -53,6 +61,12 @@ def clean_env(monkeypatch):
         "EVOSCIENTIST_DEFAULT_MODE",
         "EVOSCIENTIST_WORKSPACE_DIR",
         "EVOSCIENTIST_UI_BACKEND",
+        "OPENAI_BASE_URL",
+        "OPENAI_USE_RESPONSES_API",
+        "CUSTOM_OPENAI_API_KEY",
+        "CUSTOM_OPENAI_BASE_URL",
+        "CUSTOM_OPENAI_USE_RESPONSES_API",
+        "CODEX_HOME",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -419,3 +433,77 @@ class TestApplyConfigToEnv:
         apply_config_to_env(config)
 
         assert os.environ.get("OLLAMA_BASE_URL") == "http://existing:11434"
+
+
+    def test_openai_provider_falls_back_to_codex_local(self, tmp_path, monkeypatch):
+        """OpenAI provider can reuse local Codex auth/config when env is unset."""
+        codex_home = tmp_path / "codex-home"
+        codex_home.mkdir(parents=True, exist_ok=True)
+
+        (codex_home / "auth.json").write_text(json.dumps({"OPENAI_API_KEY": "clp-local-key"}))
+        (codex_home / "config.toml").write_text(
+            'model_provider = "codex-for-me"\n\n'
+            '[model_providers.codex-for-me]\n'
+            'base_url = "https://api-vip.codex-for.me/v1"\n'
+            'wire_api = "responses"\n'
+        )
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        monkeypatch.delenv("OPENAI_USE_RESPONSES_API", raising=False)
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+        config = EvoScientistConfig(provider="openai")
+
+        apply_config_to_env(config)
+
+        assert os.environ.get("OPENAI_API_KEY") == "clp-local-key"
+        assert os.environ.get("OPENAI_BASE_URL") == "https://api-vip.codex-for.me/v1"
+        assert os.environ.get("OPENAI_USE_RESPONSES_API") == "true"
+
+    def test_custom_openai_provider_falls_back_to_codex_local(self, tmp_path, monkeypatch):
+        """custom-openai provider can reuse local Codex auth/config when unset."""
+        codex_home = tmp_path / "codex-home"
+        codex_home.mkdir(parents=True, exist_ok=True)
+
+        (codex_home / "auth.json").write_text(json.dumps({"OPENAI_API_KEY": "clp-local-key"}))
+        (codex_home / "config.toml").write_text(
+            'model_provider = "codex-for-me"\n\n'
+            '[model_providers.codex-for-me]\n'
+            'base_url = "https://api-vip.codex-for.me/v1"\n'
+            'wire_api = "responses"\n'
+        )
+
+        monkeypatch.delenv("CUSTOM_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("CUSTOM_OPENAI_BASE_URL", raising=False)
+        monkeypatch.delenv("CUSTOM_OPENAI_USE_RESPONSES_API", raising=False)
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+        config = EvoScientistConfig(provider="custom-openai")
+
+        apply_config_to_env(config)
+
+        assert os.environ.get("CUSTOM_OPENAI_API_KEY") == "clp-local-key"
+        assert os.environ.get("CUSTOM_OPENAI_BASE_URL") == "https://api-vip.codex-for.me/v1"
+        assert os.environ.get("CUSTOM_OPENAI_USE_RESPONSES_API") == "true"
+
+    def test_openai_fallback_does_not_override_existing_env(self, tmp_path, monkeypatch):
+        """Existing OpenAI env vars must win over codex local fallback."""
+        codex_home = tmp_path / "codex-home"
+        codex_home.mkdir(parents=True, exist_ok=True)
+
+        (codex_home / "auth.json").write_text(json.dumps({"OPENAI_API_KEY": "clp-local-key"}))
+        (codex_home / "config.toml").write_text(
+            'model_provider = "codex-for-me"\n\n'
+            '[model_providers.codex-for-me]\n'
+            'base_url = "https://api-vip.codex-for.me/v1"\n'
+            'wire_api = "responses"\n'
+        )
+
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+        monkeypatch.setenv("OPENAI_API_KEY", "existing-openai-key")
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://already-set.example/v1")
+        config = EvoScientistConfig(provider="openai")
+
+        apply_config_to_env(config)
+
+        assert os.environ.get("OPENAI_API_KEY") == "existing-openai-key"
+        assert os.environ.get("OPENAI_BASE_URL") == "https://already-set.example/v1"
