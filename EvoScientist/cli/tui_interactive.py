@@ -10,6 +10,7 @@ import asyncio
 import logging
 import queue
 import random
+import sys
 from collections.abc import Callable
 from typing import Any, ClassVar
 
@@ -105,9 +106,16 @@ def _build_welcome_banner(
     info.append("\n  ", style="dim")
     info.append("Directory: ", style="dim")
     info.append(dir_display, style="magenta")
-    info.append("\n  Type ", style="#ffe082")
+    _nl_key = "Option+Enter" if sys.platform == "darwin" else "Ctrl+J"
+    info.append("\n  Enter ", style="#ffe082")
+    info.append("send", style="#ffe082 bold")
+    info.append(f" \u2022 {_nl_key} ", style="#ffe082")
+    info.append("newline", style="#ffe082 bold")
+    info.append(" \u2022 Type ", style="#ffe082")
     info.append("/", style="#ffe082 bold")
     info.append(" for commands", style="#ffe082")
+    info.append(" \u2022 Ctrl+C ", style="#ffe082")
+    info.append("interrupt", style="#ffe082 bold")
     banner.append_text(info)
 
     slogan = Text(f"\n  {random.choice(WELCOME_SLOGANS)}", style="dim italic")
@@ -177,7 +185,7 @@ def run_textual_interactive(
         from textual.binding import Binding
         from textual.containers import Container, Horizontal, VerticalScroll
         from textual.events import MouseUp
-        from textual.widgets import Input, Static
+        from textual.widgets import Static
 
         from .clipboard import copy_selection_to_clipboard, get_clipboard_text
         from .widgets import (
@@ -192,6 +200,7 @@ def run_textual_interactive(
             UsageWidget,
             UserMessage,
         )
+        from .widgets.chat_input import ChatTextArea
     except Exception as e:  # pragma: no cover - runtime fallback path
         raise RuntimeError(
             "Textual TUI backend requires 'textual'. Run: pip install textual"
@@ -225,7 +234,9 @@ def run_textual_interactive(
             background: #16161a;
         }
         #input-row {
-            height: 3;
+            height: auto;
+            min-height: 3;
+            max-height: 10;
             border: solid #0284c7;
             background: #1e1f26;
             padding: 0 1;
@@ -238,6 +249,8 @@ def run_textual_interactive(
         }
         #prompt {
             width: 1fr;
+            min-height: 1;
+            max-height: 8;
             border: none;
             background: transparent;
             color: #e5e7eb;
@@ -311,6 +324,8 @@ def run_textual_interactive(
             self._browser_future: asyncio.Future | None = None
             self._mcp_browser_future: asyncio.Future | None = None
             self._history_suggester = HistorySuggester(get_config_dir() / "history")
+            self._history_index: int = -1  # -1 = not browsing history
+            self._history_saved_input: str = ""  # saved current input before browsing
             self._background_tasks: set[asyncio.Task] = set()
             self._quit_pending: bool = False
 
@@ -437,10 +452,9 @@ def run_textual_interactive(
                 yield Static("", id="completions")
                 with Horizontal(id="input-row"):
                     yield Static(">", id="input-cursor")
-                    yield Input(
+                    yield ChatTextArea(
                         placeholder="Type message (/ for commands)",
                         id="prompt",
-                        suggester=self._history_suggester,
                     )
 
             yield Static("", id="status")
@@ -448,7 +462,7 @@ def run_textual_interactive(
         def on_mount(self) -> None:
             self._render_welcome()
             self._render_status()
-            self.query_one("#prompt", Input).focus()
+            self.query_one("#prompt", ChatTextArea).focus()
             # Show resume status
             if self._resume_warning:
                 self._append_system(self._resume_warning, style="yellow")
@@ -462,8 +476,37 @@ def run_textual_interactive(
                         self._render_history(self._conversation_tid)
                     )
                 )
+            # Startup notifications
+            self.notify(
+                "EvoScientist is your research buddy.\n"
+                "Tell it about your taste before cooking some meal!",
+                severity="warning",
+                timeout=10,
+            )
+            self.run_worker(
+                self._check_for_updates, exclusive=True, group="update-check"
+            )
             # Auto-start channels
             self._start_channels()
+
+        # ── Update check ──────────────────────────────────────
+
+        async def _check_for_updates(self) -> None:
+            """Check PyPI for a newer EvoScientist version and notify."""
+            try:
+                from ..update_check import _installed_version, is_update_available
+
+                available, latest = await asyncio.to_thread(is_update_available)
+                if available:
+                    current = _installed_version()
+                    self.notify(
+                        f"Update available: v{latest} (current: v{current}).\n"
+                        "Run: uv tool upgrade EvoScientist",
+                        severity="information",
+                        timeout=15,
+                    )
+            except Exception:
+                _channel_logger.debug("Background update check failed", exc_info=True)
 
         # ── Channel integration ────────────────────────────────
 
@@ -577,7 +620,7 @@ def run_textual_interactive(
                     picker_widget.remove()
                 except Exception:
                     pass
-                self.query_one("#prompt", Input).focus()
+                self.query_one("#prompt", ChatTextArea).focus()
 
         def on_thread_picker_widget_picked(self, event) -> None:  # type: ignore[override]
             """Handle ThreadPickerWidget.Picked message."""
@@ -605,7 +648,7 @@ def run_textual_interactive(
                     browser_widget.remove()
                 except Exception:
                     pass
-                self.query_one("#prompt", Input).focus()
+                self.query_one("#prompt", ChatTextArea).focus()
 
         def on_skill_browser_widget_confirmed(self, event) -> None:  # type: ignore[override]
             """Handle SkillBrowserWidget.Confirmed message."""
@@ -632,7 +675,7 @@ def run_textual_interactive(
                     browser_widget.remove()
                 except Exception:
                     pass
-                self.query_one("#prompt", Input).focus()
+                self.query_one("#prompt", ChatTextArea).focus()
 
         def on_mcpbrowser_widget_confirmed(self, event) -> None:  # type: ignore[override]
             """Handle MCPBrowserWidget.Confirmed message."""
@@ -1093,7 +1136,7 @@ def run_textual_interactive(
                                     # Interactive TUI: display widget, collect via arrow keys
                                     from .widgets.ask_user_widget import AskUserWidget
 
-                                    _prompt = self.query_one("#prompt", Input)
+                                    _prompt = self.query_one("#prompt", ChatTextArea)
                                     _prompt.disabled = True
                                     ask_w = AskUserWidget(questions)
                                     await container.mount(ask_w)
@@ -1166,7 +1209,7 @@ def run_textual_interactive(
 
                             # Interactive TUI: mount approval widget
                             # Disable main prompt so it can't steal focus
-                            _prompt = self.query_one("#prompt", Input)
+                            _prompt = self.query_one("#prompt", ChatTextArea)
                             _prompt.disabled = True
                             from .widgets.approval_widget import ApprovalWidget
 
@@ -1351,7 +1394,7 @@ def run_textual_interactive(
                 self._busy = False
                 self._run_task = None
                 self._render_status()
-                self.query_one("#prompt", Input).focus()
+                self.query_one("#prompt", ChatTextArea).focus()
 
             # Process next queued message (FIFO) — skip if interrupted
             if not cancelled and self._queued_messages:
@@ -1371,7 +1414,7 @@ def run_textual_interactive(
             self._busy = True
             self._render_status()
 
-            prompt_widget = self.query_one("#prompt", Input)
+            prompt_widget = self.query_one("#prompt", ChatTextArea)
             prompt_widget.disabled = True
 
             # Mount user message first, then "Received" label
@@ -1515,11 +1558,15 @@ def run_textual_interactive(
 
         # ── Input handling ─────────────────────────────────────
 
-        async def on_input_submitted(self, event: Input.Submitted) -> None:
+        async def on_chat_text_area_submitted(
+            self, event: ChatTextArea.Submitted
+        ) -> None:
             text = event.value.strip()
-            prompt = self.query_one("#prompt", Input)
+            prompt = self.query_one("#prompt", ChatTextArea)
             prompt.value = ""
             self._quit_pending = False
+            self._history_index = -1
+            self._history_saved_input = ""
 
             if not text:
                 return
@@ -1543,8 +1590,8 @@ def run_textual_interactive(
             self._history_suggester.append_entry(text)
             self._run_task = asyncio.ensure_future(self._run_turn(text))
 
-        def on_input_changed(self, event: Input.Changed) -> None:
-            text = event.value
+        def on_text_area_changed(self, event: ChatTextArea.Changed) -> None:
+            text = event.text_area.text
             comp_widget = self.query_one("#completions", Static)
             if text.startswith("/"):
                 prefix = text.lower()
@@ -1655,11 +1702,24 @@ def run_textual_interactive(
                     return
             if self._queued_messages:
                 last = self._queued_messages.pop()
-                prompt = self.query_one("#prompt", Input)
+                prompt = self.query_one("#prompt", ChatTextArea)
                 prompt.value = last
-                prompt.cursor_position = len(prompt.value)
                 prompt.focus()
                 self._render_queue_indicator()
+                return
+
+            # History browsing (up key)
+            entries = self._history_suggester._entries
+            if not entries:
+                return
+            prompt = self.query_one("#prompt", ChatTextArea)
+            if self._history_index == -1:
+                # Save current input before entering history
+                self._history_saved_input = prompt.value
+            if self._history_index + 1 < len(entries):
+                self._history_index += 1
+                prompt.value = entries[self._history_index]
+                prompt.focus()
 
         def action_down_delegate(self) -> None:
             """Delegate down key to focused interactive widget."""
@@ -1694,6 +1754,17 @@ def run_textual_interactive(
                     focused.action_move_down()
                     return
 
+            # History browsing (down key)
+            if self._history_index >= 0:
+                prompt = self.query_one("#prompt", ChatTextArea)
+                self._history_index -= 1
+                if self._history_index == -1:
+                    # Back to saved input
+                    prompt.value = self._history_saved_input
+                else:
+                    prompt.value = self._history_suggester._entries[self._history_index]
+                prompt.focus()
+
         def action_paste_clipboard(self) -> None:
             """Paste text from system clipboard into the input field."""
             text = get_clipboard_text()
@@ -1705,7 +1776,7 @@ def run_textual_interactive(
                 )
                 return
 
-            prompt = self.query_one("#prompt", Input)
+            prompt = self.query_one("#prompt", ChatTextArea)
             # Insert at cursor position
             pos = prompt.cursor_position
             current = prompt.value
@@ -1723,7 +1794,7 @@ def run_textual_interactive(
             comp_widget = self.query_one("#completions", Static)
             if not (comp_widget.display and self._comp_items):
                 # No completions active — keep focus on the prompt.
-                self.query_one("#prompt", Input).focus()
+                self.query_one("#prompt", ChatTextArea).focus()
                 return
             self._comp_index = (self._comp_index + 1) % len(self._comp_items)
             self._apply_selected_completion()
@@ -1746,7 +1817,7 @@ def run_textual_interactive(
             if self._comp_index < 0 or self._comp_index >= len(self._comp_items):
                 return
             selected_cmd = self._comp_items[self._comp_index][0]
-            prompt = self.query_one("#prompt", Input)
+            prompt = self.query_one("#prompt", ChatTextArea)
             prompt.value = selected_cmd + " "
             prompt.cursor_position = len(prompt.value)
 
@@ -1869,7 +1940,7 @@ def run_textual_interactive(
                 else:
                     # Edge case: busy but no task — force reset
                     self._busy = False
-                    self.query_one("#prompt", Input).focus()
+                    self.query_one("#prompt", ChatTextArea).focus()
                     self._render_status()
                     self._append_system(
                         "\nInterrupted by user", style="dim italic #ffe082"
